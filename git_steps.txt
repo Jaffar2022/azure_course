@@ -1,0 +1,15 @@
+Github to local
+git clone (to clone entire repo from github)
+
+Local to git
+1.  Create folder
+git init
+git add .
+git commit -m "initial commit"
+git branch -M main
+git remote add origin (HTTP/SSH)
+git remote -v (verify)
+git push -u origin main
+
+
+git pull origin main (pull changes from github to local)
