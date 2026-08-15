@@ -1,0 +1,26 @@
+1.  Login to Azure
+Create
+RG -jafdf
+Add storage to RG - dfcourse1 (Advanced tab - enable hierarchial namespace)
+Add DF to RG - jaffardf
+Note: To create data lake in storage enable hierarchial namespace.
+
+2.  Go to storage, data storage and add containers for data lake.
+Two containers source and destination.
+In source create folder csvfiles and upload files 
+
+3.  Connect DF with storage account
+Launch DF, go to manage, Linked Services +New
+Select Azure Data Lake Storage Gen2 
+Name: linkedservicesdl
+storage account name: dfcourse1
+test connection and create
+
+4.  Copy Activity
+Source - Copy Activity (copy data) - Destination
+Go to DF - Author Tab - Move and Transform - Copy data - drag to canvas
+Pipeline1
+Source - Gen2 source_csv1 no schema add details
+Sink (destination) - Gen2 - destination_csv1 no schema
+debug - succeeded.  Verify
+
