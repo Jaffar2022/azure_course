@@ -12,7 +12,7 @@ In source create folder csvfiles and upload files
 3.  Connect DF with storage account
 Launch DF, go to manage, Linked Services +New
 Select Azure Data Lake Storage Gen2 
-Name: linkedservicesdl
+Name: linkedservicedl
 storage account name: dfcourse1
 test connection and create
 
@@ -24,3 +24,139 @@ Source - Gen2 source_csv1 no schema add details
 Sink (destination) - Gen2 - destination_csv1 no schema
 debug - succeeded.  Verify
 
+5.  Pull data from github to Data Lake
+Create New pipeline
+Source
+data source - HTTP
+create linkedservice - linkedservicegit (add base URL and relative URL)
+authentication type - anonymous
+Sinkuse destination_csv1 (give file name file2.csv)
+debug
+
+Note: Click Publish All to save in DF
+
+Get Metadata Activity
+6.  DF, Author, new pipeline - name only selected files
+Drag Get Metadata
+name: metadatads, linkedservicedl, source destination, select only folder
+Fieldlist: childItems
+Debug, Output
+
+7.  FOR EACH, IF CONDITION, COPY ACTIVITY on GET Metadata
+Create container reporting
+Note: Activities Connections: On Skip, On Success, On Fail, On Completion
+Drag FOR EACH activity and connect on Success
+For each settings, check sequential
+Dynamic, select @activity('Get MetadataDL').output.childItems
+
+Go inside For Each, name ForEachCSV, go to activities and click pencil button 
+Drag If Condition, Activities, Dynamic
+...Functions, add startswith and use out of ForEachCSV
+@startswith(item().name,'Fact')
+Note: If this condition is true we want to perform copy activity
+so ForEachCSV Activities, click pencil and drag copy activity, name CopyFactData
+Add Source (destination here), Gen2, delimeter, csvfile folder, ok
+Advanced, open dataset, parameter, +new, p_file_name
+Go back to Connection, dynamic, add @dataset().p_file_name
+Go back to Copy Activity (OnlySelectedFiles), dyanmic, type @item().name
+
+Sink, New, Gen2, Delimeter, name - reporting_sink, add folder csvfiles and follow the same step
+Advanced, open dataset, parameter, +new, p_file_name
+Go back to Connection, dynamic, add @dataset().p_file_name
+Go back to Copy Activity (OnlySelectedFiles), dyanmic, type @item().name
+
+Go to Get Metadata (OnlySelectedFiles) and debug 
+Verify in Reporting container, there should be only Fact_Sales file
+Publish all and Publish to save
+
+Data flow Activity (Transformations, Spark)
+8.  Drag data flow and connect to For Each using On Success
+Select Data flow 
+GENERAL - Data Transformations
+SETTINGS - +New, Name: TransformCSV
+Add source - stream name - sourceCSV 
+Dataset - +new - gen2, delimeter, name dataflow_source, linkedservicedl
+pick reporting folder, ok
+Turn on Dataflow debug
+Data preview - refresh to review data
+Projection -import projection - Reset schema
+Go to sourceCSV click + icon and perform transformations like 
+Select, filter, split condition, derived column, coalesce 
+Note: Use expression builder, settings, filter on, Open expression builder
+(customer_id =! 12) not equal to 
+
+Groupby on visa
+Aggregate - GroupBy, 
+GroupBy customer_id
+Aggregate product_id
+Open expression builder max(product_id)
+Data preview refresh
+
+Aggregate + alterRows, Insert If 1==1
+alterRows + Sink, select Dataset, reporting, (new dir) dataflow_output
+Validate
+
+Publish all
+Go to main pipeline OnlySelectedFiles
+Insted of debug, we will use trigger here to run the pipeline 
+Add Trigger - 
+name - selectedfilestrigger
+Schedule - Schedule
+(With Tumbling you can run the pipeline from the past date)
+Set the trigger, verify in Manage and wait and check in Monitor
+Go to pipeline and click on selected trigger to view 
+Go to storageaccount and check folder reporting/dataflow_output
+
+SET VARIABLE ACTIVITY 
+9.  New pipeline, name Varpipeline
+Copy and paste Get Metadata activity from OnlySelectedFiles into Varpipeline
+Click on blank canvas, variables, Name var_files, type array, default value value
+Drag set variable and connect with Get Metadata, connect on Success
+General - Name - StoreFiles
+Settings - drop down - var_files, select pipeline value
+value - dynamic - get meta data output.childItems
+Debug, StoreFiles output
+
+STORAGE EVENTS TRIGGER
+Note:  Add Subscription for this,
+Home - Subscription - Settings - Resource Provider - MicrosoftEventGrid, register
+
+10.  New pipeline - pipelinemanager
+copy - Copy CSV activity and paste
+Add Trigger - 
+new - ManTrigger 
+Type - Storage Events
+Subscription and storage
+Blob path - csvFiles/Fact_Sales_1.csv 
+Note:  It will trigger only when Fact_Sales_1.csv file is added 
+Event: Blob created
+Continue, Ok
+
+DELETE ACTIVITY
+Drag Delete and connect to Copy CSV, on Success 
+source csvFiles
+publish all 
+Storage account - Containers - csvfiles - delete old file 
+and upload new Fact_Sales_1 to trigger pipeline
+
+Add pipelineGit to Delete activity
+Drag Execute Pipeline activity and connect on success
+    Genera: Name: ExecuteGitPipeline
+    Settings: Invoked Pipeline - pipelineGit
+
+
+EXECUTE PIPELINE ACTIVITY
+11.  Detach all triggers in pipeline (OnlySelectedFiles and pipelinemanager)
+Delete files and folders from Reporting and destination folders 
+Create New Pipeline - Prodpipeline
+Drag Execute Pipeline activity
+    General - Name - ExecuteManagerPipeline
+    Settings - Invoked pipeline - pipelinemanager
+Drag another Execute Pipeline activity and connect on Success
+    General - Name - ExecuteOnSelectedFilesPipeline
+    Settings - pipeline - OnlySelectedFiles
+Add Trigger - ManTrigger, continue ok
+Publish All
+
+Upload the file Fact_Sales_1 in containers - Source/csvfiles 
+and verify in Monitor - Trigger Runs
